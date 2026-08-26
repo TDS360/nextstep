@@ -3,6 +3,11 @@ import { placeholderData } from "./data.js";
 import LocationSearch from "./components/LocationSearch.jsx";
 import LocationMap from "./components/LocationMap.jsx";
 
+import {
+  calculateEnvironmentalRisk,
+  simulateTreeCoverage,
+} from "./riskEngine.js";
+
 /* =====================================================
    ICONS
    Minimal stroke icons, 24x24, no external icon library.
@@ -392,7 +397,7 @@ function SimulatorColumn({ title, coverage, risk }) {
 // the difference between before and after. Write the
 // result into `appData.simulation`, then swap the
 // `disabled` button below for a real onClick handler.
-function TreeSimulator({ data }) {
+function TreeSimulator({ data, onSimulate, disabled }) {
   return (
     <Card className="p-5 sm:p-6">
       <SectionHeading eyebrow="Feature 2" title="Tree coverage simulator" />
@@ -405,10 +410,16 @@ function TreeSimulator({ data }) {
 
       <button
         type="button"
-        disabled
-        title="Wired up once Feature 2 implements the simulation"
+        disabled={disabled}
+        onClick={onSimulate}
+        title={
+          disabled
+            ? "Waiting for environmental data."
+            : "Simulate adding 10% tree coverage"
+        }
         className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
       >
+
         <TreeIcon className="h-4 w-4" />
         Simulate +10% Trees
       </button>
@@ -556,10 +567,71 @@ function Dashboard() {
   // resolves. Feature 2 and Feature 3 read appData.environmental,
   // so they pick up the new numbers automatically.
   function handleLocationData(location, environmental) {
+    if (!environmental) {
+      setAppData((prev) => ({
+        ...prev,
+        location,
+        environmental: EMPTY_ENVIRONMENTAL,
+        risk: {
+          airRisk: null,
+          heatRisk: null,
+          overallRisk: null,
+          topReasons: [],
+        },
+        simulation: {
+          currentTreeCoverage: null,
+          currentRisk: null,
+          simulatedTreeCoverage: null,
+          simulatedRisk: null,
+          change: null,
+        },
+      }));
+
+      return;
+    }
+
+    const riskResult = calculateEnvironmentalRisk(environmental);
+
     setAppData((prev) => ({
       ...prev,
       location,
-      environmental: environmental ?? EMPTY_ENVIRONMENTAL,
+      environmental,
+      risk: {
+        airRisk: riskResult.airScore,
+        heatRisk: riskResult.heatScore,
+        overallRisk: riskResult.overallScore,
+        topReasons: [],
+      },
+      simulation: {
+        currentTreeCoverage: riskResult.treeCoverage,
+        currentRisk: riskResult.overallScore,
+        simulatedTreeCoverage: null,
+        simulatedRisk: null,
+        change: null,
+      },
+    }));
+  }
+  function handleTreeSimulation() {
+    if (!appData.environmental) return;
+
+    const { treeCoverage } = appData.environmental;
+
+    if (treeCoverage == null) return;
+
+    const simulation = simulateTreeCoverage(
+      appData.environmental,
+      10
+    );
+
+    setAppData((prev) => ({
+      ...prev,
+      simulation: {
+        currentTreeCoverage: simulation.before.treeCoverage,
+        currentRisk: simulation.before.overallScore,
+        simulatedTreeCoverage: simulation.after.treeCoverage,
+        simulatedRisk: simulation.after.overallScore,
+        change: simulation.change,
+      },
     }));
   }
 
@@ -593,7 +665,11 @@ function Dashboard() {
       {/* Risk — Feature 2 */}
       <div className="grid gap-6 lg:grid-cols-2">
         <RiskOverview data={appData.risk} />
-        <TreeSimulator data={appData.simulation} />
+        <TreeSimulator
+         data={appData.simulation}
+         onSimulate={handleTreeSimulation}
+         disabled={appData.environmental.treeCoverage == null}
+         />
       </div>
 
       {/* AI insights + chart — Feature 2 & 3 */}
