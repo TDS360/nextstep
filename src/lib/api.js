@@ -1,26 +1,51 @@
-
-const GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search";
+// Photon (https://photon.komoot.io) — an open-source geocoder over
+// OpenStreetMap data, purpose-built for search-as-you-type. Unlike
+// Open-Meteo's geocoding (which is place/city-level only), Photon
+// resolves full street addresses ("1600 Pennsylvania Avenue NW,
+// Washington"), not just city/state names. No API key needed; it's
+// a public demo server, so keep request volume reasonable — the
+// debounce in LocationSearch.jsx already does this.
+const GEOCODE_URL = "https://photon.komoot.io/api";
 const WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
 const AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality";
 
-// Turns a raw geocoding result into the shape the rest of
-// the app uses. Keeps admin1 (state/region) + country
-// around so results can be told apart in a dropdown, e.g.
-// "Springfield, Illinois, United States" vs
-// "Springfield, Missouri, United States".
-function normalizeResult(result) {
+// Turns a raw Photon GeoJSON feature into the shape the rest of
+// the app uses. Keeps the address parts (housenumber/street)
+// separate from city/state/country so formatLocationLabel can
+// build a clean label whether the result is a full address, a
+// landmark, or just a city.
+function normalizeResult(feature) {
+  const props = feature.properties ?? {};
+  const [lng, lat] = feature.geometry?.coordinates ?? [null, null];
+
   return {
-    id: result.id,
-    name: result.name,
-    admin1: result.admin1 ?? null,
-    country: result.country ?? null,
-    lat: result.latitude,
-    lng: result.longitude,
+    id: props.osm_id ?? `${lat}-${lng}`,
+    name: props.name ?? null,
+    housenumber: props.housenumber ?? null,
+    street: props.street ?? null,
+    city: props.city ?? props.district ?? props.county ?? null,
+    state: props.state ?? null,
+    country: props.country ?? null,
+    lat,
+    lng,
   };
 }
 
 export function formatLocationLabel(result) {
-  return [result.name, result.admin1, result.country].filter(Boolean).join(", ");
+  // Prefer "123 Main Street" when we have a full address; fall
+  // back to the street name alone, then to whatever name Photon
+  // gave the place (a landmark, park, city, etc).
+  const addressLine =
+    result.housenumber && result.street
+      ? `${result.housenumber} ${result.street}`
+      : result.street || result.name;
+
+  const parts = [addressLine];
+  if (result.city && result.city !== addressLine) parts.push(result.city);
+  if (result.state) parts.push(result.state);
+  if (result.country) parts.push(result.country);
+
+  return parts.filter(Boolean).join(", ");
 }
 
 // Search-as-you-type. Returns [] for short/empty queries
@@ -28,14 +53,14 @@ export function formatLocationLabel(result) {
 export async function searchLocations(query) {
   if (!query || query.trim().length < 2) return [];
 
-  const url = `${GEOCODE_URL}?name=${encodeURIComponent(query.trim())}&count=6&language=en&format=json`;
+  const url = `${GEOCODE_URL}?q=${encodeURIComponent(query.trim())}&limit=6&lang=en`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Geocoding request failed (${response.status})`);
   }
 
   const data = await response.json();
-  return (data.results ?? []).map(normalizeResult);
+  return (data.features ?? []).map(normalizeResult).filter((result) => result.lat != null && result.lng != null);
 }
 
 // EPA US AQI breakpoints, in plain English.
