@@ -1,13 +1,6 @@
 // riskEngine.js
 
-// ============================================================
-// AeroWatch Risk Engine
-// ============================================================
-//
-// This is a deterministic hackathon scoring model.
-// It is NOT an official scientific or medical environmental
-// risk standard.
-//
+
 // Score meaning:
 // 0   = worst conditions
 // 100 = best conditions

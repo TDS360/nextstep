@@ -2,6 +2,7 @@ import { useState } from "react";
 import { placeholderData } from "./data.js";
 import LocationSearch from "./components/LocationSearch.jsx";
 import LocationMap from "./components/LocationMap.jsx";
+import { fetchAIInsights } from "./lib/ai.js";
 
 import {
   calculateEnvironmentalRisk,
@@ -504,18 +505,27 @@ function BulletList({ title, items, placeholder }) {
   );
 }
 
-// FEATURE 3 DEVELOPER:
-// Connect this section to the AI API. Send: environmental
-// data (appData.environmental), Air/Heat/Overall Risk
-// (appData.risk), and tree simulation results
-// (appData.simulation). AI should return: mainConcern
-// (string), contributingFactors (string[]), recommendations
-// (string[]), simulationExplanation (string, not yet shown
-// in the UI below — add a spot for it once you're ready).
-function AIInsights({ data }) {
+// Feature 3 — powered by src/lib/ai.js: a rule-based generator
+// that always works (used on the deployed site), which
+// transparently upgrades to a local Ollama model's output when
+// server/app.py is running (see that file's setup steps).
+function AIInsights({ data, onGenerate, isLoading, hasEnvironmentalData }) {
+  const hasInsights = data.mainConcern != null;
+
   return (
     <Card className="p-5 sm:p-6">
-      <SectionHeading eyebrow="Feature 3" title="AI insights" />
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <SectionHeading eyebrow="Feature 3" title="AI insights" />
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={!hasEnvironmentalData || isLoading}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[var(--color-primary-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <SparkleIcon className="h-3.5 w-3.5" />
+          {isLoading ? "Thinking…" : hasInsights ? "Refresh" : "Generate insights"}
+        </button>
+      </div>
 
       <div className="mb-5 flex items-start gap-3 rounded-xl bg-[var(--color-accent-soft)] p-4">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface)] text-[var(--color-primary)]">
@@ -524,7 +534,7 @@ function AIInsights({ data }) {
         <div>
           <p className="mb-0.5 text-sm font-semibold text-[var(--color-primary)]">Main concern</p>
           <p className="text-sm text-[var(--color-primary)]/80">
-            {data.mainConcern ?? "AI-generated explanation will appear here."}
+            {data.mainConcern ?? "Search a location, then click \u201cGenerate insights\u201d."}
           </p>
         </div>
       </div>
@@ -533,6 +543,13 @@ function AIInsights({ data }) {
         <BulletList title="Contributing factors" items={data.contributingFactors} placeholder="Environmental factor" />
         <BulletList title="Recommendations" items={data.recommendations} placeholder="Recommendation" />
       </div>
+
+      {data.simulationExplanation && (
+        <div className="mt-5 flex items-start gap-2 rounded-xl border border-dashed border-[var(--color-line)] p-3.5 text-sm text-[var(--color-muted)]">
+          <TreeIcon className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>{data.simulationExplanation}</p>
+        </div>
+      )}
     </Card>
   );
 }
@@ -559,6 +576,7 @@ const EMPTY_ENVIRONMENTAL = {
 
 function Dashboard() {
   const [appData, setAppData] = useState(placeholderData);
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
 
   // Passed to LocationSearch. It calls this twice per
   // selection: once with `environmental: null` (so the UI can
@@ -567,49 +585,29 @@ function Dashboard() {
   // resolves. Feature 2 and Feature 3 read appData.environmental,
   // so they pick up the new numbers automatically.
   function handleLocationData(location, environmental) {
-    if (!environmental) {
-      setAppData((prev) => ({
-        ...prev,
-        location,
-        environmental: EMPTY_ENVIRONMENTAL,
-        risk: {
-          airRisk: null,
-          heatRisk: null,
-          overallRisk: null,
-          topReasons: [],
-        },
-        simulation: {
-          currentTreeCoverage: null,
-          currentRisk: null,
-          simulatedTreeCoverage: null,
-          simulatedRisk: null,
-          change: null,
-        },
-      }));
-
-      return;
-    }
-
-    const riskResult = calculateEnvironmentalRisk(environmental);
-
     setAppData((prev) => ({
       ...prev,
       location,
-      environmental,
-      risk: {
-        airRisk: riskResult.airScore,
-        heatRisk: riskResult.heatScore,
-        overallRisk: riskResult.overallScore,
-        topReasons: [],
-      },
-      simulation: {
-        currentTreeCoverage: riskResult.treeCoverage,
-        currentRisk: riskResult.overallScore,
-        simulatedTreeCoverage: null,
-        simulatedRisk: null,
-        change: null,
-      },
+      environmental: environmental ?? EMPTY_ENVIRONMENTAL,
+      // A new location invalidates any AI insights generated for
+      // the previous one.
+      ai: placeholderData.ai,
     }));
+  }
+
+  // Passed to AIInsights' "Generate insights" button. Tries the
+  // optional local Ollama backend first, and transparently falls
+  // back to the rule-based generator (see lib/ai.js) if that
+  // backend isn't configured or isn't running — so this always
+  // succeeds.
+  async function handleGenerateInsights() {
+    setIsGeneratingInsights(true);
+    try {
+      const ai = await fetchAIInsights(appData.environmental, appData.risk, appData.simulation);
+      setAppData((prev) => ({ ...prev, ai }));
+    } finally {
+      setIsGeneratingInsights(false);
+    }
   }
   function handleTreeSimulation() {
     if (!appData.environmental) return;
@@ -672,9 +670,14 @@ function Dashboard() {
          />
       </div>
 
-      {/* AI insights + chart — Feature 2 & 3 */}
+            {/* AI insights + chart — Feature 2 & 3 */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <AIInsights data={appData.ai} />
+        <AIInsights
+          data={appData.ai}
+          onGenerate={handleGenerateInsights}
+          isLoading={isGeneratingInsights}
+          hasEnvironmentalData={appData.environmental.aqi != null}
+        />
         <RiskChart current={appData.simulation.currentRisk} after={appData.simulation.simulatedRisk} />
       </div>
     </div>
