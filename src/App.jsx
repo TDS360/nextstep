@@ -3,6 +3,7 @@ import { placeholderData } from "./data.js";
 import LocationSearch from "./components/LocationSearch.jsx";
 import LocationMap from "./components/LocationMap.jsx";
 import { fetchAIInsights } from "./lib/ai.js";
+import AccessibilityWidget from "./components/AccessibilityWidget.jsx";
 
 import {
   calculateEnvironmentalRisk,
@@ -20,6 +21,8 @@ const iconBase = {
   strokeWidth: 1.75,
   strokeLinecap: "round",
   strokeLinejoin: "round",
+  "aria-hidden": "true",
+  focusable: "false",
 };
 
 const LeafIcon = (props) => (
@@ -691,11 +694,20 @@ function Dashboard() {
 export default function App() {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
+      {/* Fixed: Added the opening 'a' tag here */}
+      <a 
+        href="#dashboard" 
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-[var(--color-primary)] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        Skip to main content
+      </a>
+      
       <Header />
       <main className="flex-1">
         <Dashboard />
       </main>
       <Footer />
+      <AccessibilityWidget />
     </div>
   );
 }

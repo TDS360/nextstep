@@ -59,5 +59,13 @@ export default function LocationMap({ lat, lng, label }) {
     if (label) markerRef.current.bindPopup(label);
   }, [lat, lng, label]);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+    return (
+    <div
+      ref={containerRef}
+      className="h-full w-full"
+      role="application"
+      aria-label={label ? `Map centered on ${label}` : "Map, no location selected yet"}
+    />
+  );
 }
+

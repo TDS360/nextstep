@@ -139,3 +139,49 @@ body {
     opacity: 0;
   }
 }
+
+
+/* =====================================================
+   ACCESSIBILITY TOGGLES
+===================================================== */
+html.a11y-high-contrast {
+  --color-bg: #ffffff;
+  --color-surface: #ffffff;
+  --color-ink: #000000;
+  --color-muted: #1f1f1f;
+  --color-muted-2: #3a3a3a;
+  --color-line: #000000;
+  --color-primary: #000000;
+  --color-primary-soft: #1a1a1a;
+  --color-accent: #0a5c2e;
+  --color-accent-soft: #d9ecd9;
+  --color-amber: #7a4a00;
+  --color-amber-soft: #ffe6b0;
+}
+
+html.a11y-high-contrast * {
+  border-color: currentColor;
+}
+
+html.a11y-large-text {
+  font-size: 140%;
+}
+
+html.a11y-underline-links a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+html.a11y-keyboard-focus :focus-visible {
+  outline: 4px solid #2563eb;
+  outline-offset: 3px;
+}
+
+html.a11y-reduce-motion *,
+html.a11y-reduce-motion *::before,
+html.a11y-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
