@@ -51,32 +51,71 @@ export function generateRuleBasedInsights(environmental = {}, risk = {}, simulat
     mainConcern = "Search for a location to see a risk summary.";
   }
 
+  // "Protect yourself" — personal, immediate, protective actions.
+  // Each one names WHO it matters most for and WHY, not just what.
   const recommendations = [];
   if (environmental.aqi != null && environmental.aqi > 100) {
-    recommendations.push("Limit prolonged outdoor exertion, especially for sensitive groups");
+    recommendations.push(
+      "Limit prolonged or intense outdoor exertion (running, biking, yard work) today — this hits children, older adults, and anyone with asthma or heart/lung conditions first",
+    );
   }
   if (environmental.pm25 != null && environmental.pm25 > 35) {
-    recommendations.push("Consider an air purifier or N95 mask outdoors");
+    recommendations.push(
+      "If you're out for a while, wear a properly fitted N95/KN95 mask, and run a HEPA air purifier indoors — especially in bedrooms overnight",
+    );
   }
   if (environmental.feelsLike != null && environmental.feelsLike > 90) {
-    recommendations.push("Stay hydrated and avoid peak-heat hours outdoors");
+    recommendations.push(
+      "Drink water on a schedule (don't wait until you're thirsty), shift outdoor plans away from midday-to-late-afternoon, and check on elderly neighbors without A/C",
+    );
   }
-  if (environmental.treeCoverage != null && environmental.treeCoverage < 30) {
-    recommendations.push("More tree cover in this area would meaningfully reduce heat and air risk");
+  if (recommendations.length === 0 && environmental.aqi != null) {
+    recommendations.push("No major personal-safety concerns detected right now — conditions are fine for normal outdoor activity");
   }
   if (recommendations.length === 0) {
-    recommendations.push("No major concerns detected — conditions look reasonable right now");
+    recommendations.push("Search for a location to see personal safety recommendations");
   }
 
+  // "Help the environment" — realistic, concrete community actions
+  // tied to what's actually driving the numbers here, each with
+  // enough detail to actually act on (who to contact, what to ask
+  // for, why it works) rather than a generic one-liner.
+  const environmentalActions = [];
+  if (environmental.treeCoverage != null && environmental.treeCoverage < 30) {
+    environmentalActions.push(
+      "Contact your city or county's urban forestry / public works department and ask about their street-tree planting program — many will plant a tree in the sidewalk strip in front of your home for free or low cost. Coverage here is low enough that even a handful of new trees on your block will measurably cut local heat and filter particulates within a few years",
+    );
+  }
+  if (environmental.aqi != null && environmental.aqi > 100) {
+    environmentalActions.push(
+      "Vehicle exhaust is one of the largest controllable sources of local PM2.5 and ozone — on days like this, combine errands into one trip, carpool with a neighbor or coworker, or swap short car trips for transit or biking where you can",
+    );
+  }
+  if (environmental.pm25 != null && environmental.pm25 > 35) {
+    environmentalActions.push(
+      "Hold off on burning yard waste, wood, or trash today — open burning is one of the fastest ways to spike neighborhood PM2.5, and it's adding directly on top of an already elevated reading",
+    );
+  }
+  if (environmental.treeCoverage != null && environmental.treeCoverage >= 30) {
+    environmentalActions.push(
+      "This area already has decent canopy — help keep it that way by reporting storm-damaged or diseased street trees to your city's forestry department, and by volunteering with a local tree-care group that waters and mulches young trees through their first few summers, when most newly planted trees actually die",
+    );
+  }
+  if (environmentalActions.length === 0 && environmental.aqi != null) {
+    environmentalActions.push(
+      "Conditions are good right now — a good time to get ahead of future problems by finding a local tree-planting event, community garden, or park cleanup through your city's parks department, or a group like the Arbor Day Foundation or American Forests",
+    );
+  }
   const simulationExplanation =
     simulation?.simulatedRisk != null && simulation?.currentRisk != null
       ? `Adding 10% tree coverage moves the overall risk score from ${simulation.currentRisk} to ${simulation.simulatedRisk}, mainly by adding shade and filtering particulates.`
       : null;
 
-  return {
+    return {
     mainConcern,
     contributingFactors: factors.length > 0 ? factors : ["Search for a location to see contributing factors"],
     recommendations,
+    environmentalActions,
     simulationExplanation,
   };
 }

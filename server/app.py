@@ -45,11 +45,16 @@ def build_prompt(environmental, risk, simulation):
     straight back to the frontend with no extra parsing on either
     side."""
     return f"""You are an environmental health assistant. Based on the
-data below, respond with ONLY a JSON object (no markdown, no code
-fences, no extra text) with these exact keys:
-  "mainConcern": one sentence naming the single biggest concern
-  "contributingFactors": array of 2-3 short strings
-  "recommendations": array of 2-3 short, actionable strings
+    data below, respond with ONLY a JSON object (no markdown, no code
+    fences, no extra text) with these exact keys:
+     "mainConcern": one sentence naming the single biggest concern
+    "contributingFactors": array of 2-3 short strings
+    "recommendations": array of 2-3 short, actionable, PERSONAL safety
+    steps (things the person can do right now to protect themselves)
+    "environmentalActions": array of 2-3 short, actionable, REALISTIC
+    community/environmental steps (things that would improve local
+    conditions over time, e.g. supporting tree-planting programs,
+    reducing vehicle emissions, avoiding burning yard waste)
   "simulationExplanation": one sentence, or null if simulation data is missing
 
 DATA:

@@ -299,12 +299,18 @@ function EnvironmentalCards({ data }) {
         sublabel={data.feelsLike != null ? `Feels like ${data.feelsLike}°F` : "Weather API"}
       />
       <ReadoutCard icon={<DropletIcon className="h-4 w-4" />} label="PM2.5" value={data.pm25} sublabel="µg/m³" />
-      <ReadoutCard
+            <ReadoutCard
         icon={<TreeIcon className="h-4 w-4" />}
         label="Tree Coverage"
         value={data.treeCoverage}
         unit="%"
-        sublabel="Demo Estimated"
+        sublabel={
+          data.treeCoverage == null
+            ? "USDA Forest Service"
+            : data.treeCoverageIsEstimated
+              ? "Estimated (outside US coverage)"
+              : "USDA Forest Service"
+        }
       />
     </div>
   );
@@ -544,7 +550,8 @@ function AIInsights({ data, onGenerate, isLoading, hasEnvironmentalData }) {
 
       <div className="flex flex-col gap-5 sm:flex-row">
         <BulletList title="Contributing factors" items={data.contributingFactors} placeholder="Environmental factor" />
-        <BulletList title="Recommendations" items={data.recommendations} placeholder="Recommendation" />
+        <BulletList title="Protect yourself" items={data.recommendations} placeholder="Personal safety step" />
+        <BulletList title="Help the environment" items={data.environmentalActions} placeholder="Environmental action" />
       </div>
 
       {data.simulationExplanation && (
