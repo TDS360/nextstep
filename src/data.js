@@ -12,7 +12,8 @@ export const placeholderData = {
     temperature: null, // number|null — °F
     feelsLike: null, // number|null — °F
     pm25: null, // number|null — µg/m³
-        treeCoverageIsEstimated: false, // bool — true when the real USDA dataset had no data for this point (outside the US) and a placeholder value was used instead
+    treeCoverage: null, // number|null — percent, 0-100
+    treeCoverageIsEstimated: false, // bool — true when the real USDA dataset had no data for this point (outside the US) and a placeholder value was used instead
   },
   risk: {
     airRisk: null,
