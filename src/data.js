@@ -12,21 +12,25 @@ export const placeholderData = {
     temperature: null, // number|null — °F
     feelsLike: null, // number|null — °F
     pm25: null, // number|null — µg/m³
-        treeCoverageIsEstimated: false, // bool — true when the real USDA dataset had no data for this point (outside the US) and a placeholder value was used instead
+    treeCoverage: null, // number|null — percentage, 0-100
+    treeCoverageIsEstimated: false, // bool — true when the real USDA dataset had no data for this point (outside the US) and a placeholder value was used instead
   },
-  risk: {
-    airRisk: null,
-    heatRisk: null,
-    overallRisk: null,
+
+  // SAFETY scores, straight from riskEngine.js: 100 = best/safest
+  // conditions, 0 = worst. Higher is always better here.
+  safety: {
+    airSafety: null,
+    heatSafety: null,
+    overallSafety: null,
     topReasons: [],
   },
 
   simulation: {
     currentTreeCoverage: null,
-    currentRisk: null,
+    currentSafety: null,
     simulatedTreeCoverage: null,
-    simulatedRisk: null,
-    change: null,
+    simulatedSafety: null,
+    change: null, // positive = improvement (higher safety) after adding trees
   },
 
   ai: {

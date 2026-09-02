@@ -336,32 +336,27 @@ function RiskScore({ icon, label, value }) {
     </div>
   );
 }
-
-// FEATURE 2 DEVELOPER:
-// Add the risk calculations here: Air Risk, Heat Risk,
-// Overall Risk, on a 0–100 scoring system. Connect the
-// calculations to the environmental data produced by
-// Feature 1 (appData.environmental in Dashboard below).
-// Write results into `appData.risk`, including
-// `topReasons` — a short list of plain-English strings
-// explaining the score (shown below each score).
+// Powered by riskEngine.js via Dashboard's handleLocationData.
+// Scores are SAFETY scores: 100 = best/safest conditions, 0 =
+// worst — higher is always better, matching riskEngine.js's own
+// convention directly (no inversion happens anywhere in this app).
 function RiskOverview({ data }) {
   return (
     <Card className="p-5 sm:p-6">
-      <SectionHeading eyebrow="Feature 2" title="Risk overview" />
+      <SectionHeading eyebrow="Live score" title="Safety overview" />
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        <RiskScore icon={<WindIcon className="h-3.5 w-3.5" />} label="Air risk" value={data.airRisk} />
-        <RiskScore icon={<ThermometerIcon className="h-3.5 w-3.5" />} label="Heat risk" value={data.heatRisk} />
+        <RiskScore icon={<WindIcon className="h-3.5 w-3.5" />} label="Air safety" value={data.airSafety} />
+        <RiskScore icon={<ThermometerIcon className="h-3.5 w-3.5" />} label="Heat safety" value={data.heatSafety} />
         <div className="flex-1 rounded-xl bg-[var(--color-accent-soft)] p-4">
           <div className="mb-2 flex items-center gap-2 text-[var(--color-primary)]">
             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--color-surface)]">
               <ShieldIcon className="h-3.5 w-3.5" />
             </span>
-            <span className="text-sm font-medium">Overall risk</span>
+            <span className="text-sm font-medium">Overall safety</span>
           </div>
           <p className="readout text-2xl font-semibold text-[var(--color-primary)]">
-            {data.overallRisk ?? "--"}
+            {data.overallSafety ?? "--"}
             <span className="text-base font-normal opacity-70"> /100</span>
           </p>
         </div>
@@ -376,14 +371,14 @@ function RiskOverview({ data }) {
             ))}
           </ul>
         ) : (
-          <p>Top reasons for the score will appear here once Feature 2 calculates a risk.</p>
+          <p>Top reasons for the score will appear here once a location is searched.</p>
         )}
       </div>
     </Card>
   );
 }
 
-function SimulatorColumn({ title, coverage, risk }) {
+function SimulatorColumn({ title, coverage, safety }) {
   return (
     <div className="flex-1 rounded-xl border border-[var(--color-line)] p-4 text-center">
       <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">{title}</p>
@@ -392,30 +387,23 @@ function SimulatorColumn({ title, coverage, risk }) {
         <span className="text-sm font-normal text-[var(--color-muted)]">% trees</span>
       </p>
       <div className="my-3 h-px bg-[var(--color-line)]" />
-      <p className="text-xs text-[var(--color-muted)]">Overall risk</p>
+      <p className="text-xs text-[var(--color-muted)]">Overall safety</p>
       <p className="readout text-lg font-semibold text-[var(--color-ink)]">
-        {risk ?? "--"} <span className="text-sm font-normal text-[var(--color-muted)]">/100</span>
+        {safety ?? "--"} <span className="text-sm font-normal text-[var(--color-muted)]">/100</span>
       </p>
     </div>
   );
 }
 
-// FEATURE 2 DEVELOPER:
-// Connect this button to the tree-coverage simulation.
-// When clicked: 1) increase tree coverage by 10%,
-// 2) recalculate the risk, 3) show the new risk, 4) show
-// the difference between before and after. Write the
-// result into `appData.simulation`, then swap the
-// `disabled` button below for a real onClick handler.
 function TreeSimulator({ data, onSimulate, disabled }) {
   return (
     <Card className="p-5 sm:p-6">
-      <SectionHeading eyebrow="Feature 2" title="Tree coverage simulator" />
+      <SectionHeading eyebrow="Tree coverage" title="Tree coverage simulator" />
 
       <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-        <SimulatorColumn title="Current" coverage={data.currentTreeCoverage} risk={data.currentRisk} />
+        <SimulatorColumn title="Current" coverage={data.currentTreeCoverage} safety={data.currentSafety} />
         <ArrowRightIcon className="mx-auto h-5 w-5 shrink-0 rotate-90 text-[var(--color-muted-2)] sm:rotate-0" />
-        <SimulatorColumn title="After +10% trees" coverage={data.simulatedTreeCoverage} risk={data.simulatedRisk} />
+        <SimulatorColumn title="After +10% trees" coverage={data.simulatedTreeCoverage} safety={data.simulatedSafety} />
       </div>
 
       <button
@@ -437,15 +425,8 @@ function TreeSimulator({ data, onSimulate, disabled }) {
   );
 }
 
-// FEATURE 2 DEVELOPER:
-// Connect this chart to the tree-coverage simulation and
-// display the current vs. simulated risk. `barHeight`
-// below turns a 0-100 score into a bar height percentage.
-// Swap `null` scores for real numbers from
-// appData.simulation and the bars will animate on their
-// own — no other changes needed for the basic version.
-// For a richer chart, feel free to swap this for a small
-// charting library, but it isn't required.
+// `barHeight` turns a 0-100 SAFETY score into a bar height
+// percentage — taller bar = safer, matching the score directly.
 function barHeight(score) {
   if (score == null) return 6; // a sliver, so the empty state still reads as a bar
   return Math.max(6, Math.min(100, score));
@@ -454,8 +435,7 @@ function barHeight(score) {
 function RiskChart({ current, after }) {
   return (
     <Card className="flex flex-col p-5 sm:p-6">
-      <SectionHeading eyebrow="Feature 2" title="Risk before vs. after" />
-
+      <SectionHeading eyebrow="Safety before vs. after" title="Safety before vs. after" />
       <div className="flex flex-1 items-end justify-center gap-10 pt-4">
         <div className="flex flex-col items-center gap-2">
           <span className="readout text-lg font-semibold text-[var(--color-ink)]">{current ?? "--"}</span>
@@ -524,7 +504,7 @@ function AIInsights({ data, onGenerate, isLoading, hasEnvironmentalData }) {
   return (
     <Card className="p-5 sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <SectionHeading eyebrow="Feature 3" title="AI insights" />
+        <SectionHeading eyebrow="AI-powered" title="AI insights" />
         <button
           type="button"
           onClick={onGenerate}
@@ -563,6 +543,42 @@ function AIInsights({ data, onGenerate, isLoading, hasEnvironmentalData }) {
     </Card>
   );
 }
+// riskEngine.js only returns numeric scores, not explanations.
+// RiskOverview already renders a `topReasons` list — this builds
+// it from whichever specific readings are actually elevated,
+// matching the plain-English style used elsewhere in the app.
+function buildTopReasons(environmental) {
+  const reasons = [];
+  if (environmental.aqi != null && environmental.aqi > 100) {
+    reasons.push(`Air Quality Index is elevated (${environmental.aqi})`);
+  }
+  if (environmental.pm25 != null && environmental.pm25 > 35) {
+    reasons.push(`PM2.5 is elevated (${environmental.pm25} µg/m³)`);
+  }
+  if (environmental.temperature != null && environmental.temperature > 85) {
+    reasons.push(`Temperature is well above the comfortable range (${environmental.temperature}°F)`);
+  }
+  if (environmental.treeCoverage != null && environmental.treeCoverage < 30) {
+    reasons.push(`Low tree coverage (${environmental.treeCoverage}%) offers little shade or air filtering`);
+  }
+  if (reasons.length === 0) {
+    reasons.push("Conditions are within a comfortable range across all factors");
+  }
+  return reasons;
+}
+
+// riskEngine.js's validateNumber() throws on null/undefined, so
+// this must be checked before calling it — a location can be
+// selected before all four environmental readings have arrived.
+function hasCompleteEnvironmentalData(environmental) {
+  return (
+    typeof environmental?.aqi === "number" &&
+    typeof environmental?.pm25 === "number" &&
+    typeof environmental?.temperature === "number" &&
+    typeof environmental?.treeCoverage === "number"
+  );
+}
+
 
 /* =====================================================
    DASHBOARD
@@ -594,14 +610,34 @@ function Dashboard() {
   // again once the AQI/temperature/PM2.5/tree-coverage fetch
   // resolves. Feature 2 and Feature 3 read appData.environmental,
   // so they pick up the new numbers automatically.
+    // Passed to LocationSearch. It calls this twice per selection:
+  // once with `environmental: null` (clears old readings, shows
+  // the new pin), then again once the fetch resolves. As soon as
+  // all four readings are in, this runs riskEngine.js to populate
+  // appData.safety — Feature 3 picks up those numbers automatically.
   function handleLocationData(location, environmental) {
+    const nextEnvironmental = environmental ?? EMPTY_ENVIRONMENTAL;
+
+    let safety = placeholderData.safety;
+    if (hasCompleteEnvironmentalData(nextEnvironmental)) {
+      const result = calculateEnvironmentalRisk(nextEnvironmental);
+      safety = {
+        airSafety: result.airScore,
+        heatSafety: result.heatScore,
+        overallSafety: result.overallScore,
+        topReasons: buildTopReasons(nextEnvironmental),
+      };
+    }
+
     setAppData((prev) => ({
       ...prev,
       location,
-      environmental: environmental ?? EMPTY_ENVIRONMENTAL,
-      // A new location invalidates any AI insights generated for
-      // the previous one.
+      environmental: nextEnvironmental,
+      safety,
+      // A new location invalidates any AI insights and tree
+      // simulation generated for the previous one.
       ai: placeholderData.ai,
+      simulation: placeholderData.simulation,
     }));
   }
 
@@ -613,31 +649,29 @@ function Dashboard() {
   async function handleGenerateInsights() {
     setIsGeneratingInsights(true);
     try {
-      const ai = await fetchAIInsights(appData.environmental, appData.risk, appData.simulation);
+      const ai = await fetchAIInsights(appData.environmental, appData.safety, appData.simulation);
       setAppData((prev) => ({ ...prev, ai }));
     } finally {
       setIsGeneratingInsights(false);
     }
   }
+
+  // Passed to TreeSimulator's "Simulate +10% Trees" button.
   function handleTreeSimulation() {
-    if (!appData.environmental) return;
+    if (!hasCompleteEnvironmentalData(appData.environmental)) return;
 
-    const { treeCoverage } = appData.environmental;
-
-    if (treeCoverage == null) return;
-
-    const simulation = simulateTreeCoverage(
-      appData.environmental,
-      10
-    );
+    const simulation = simulateTreeCoverage(appData.environmental, 10);
 
     setAppData((prev) => ({
       ...prev,
       simulation: {
         currentTreeCoverage: simulation.before.treeCoverage,
-        currentRisk: simulation.before.overallScore,
+        currentSafety: simulation.before.overallScore,
         simulatedTreeCoverage: simulation.after.treeCoverage,
-        simulatedRisk: simulation.after.overallScore,
+        simulatedSafety: simulation.after.overallScore,
+        // riskEngine's `change` is already a safety-score
+        // improvement (positive = better) — same convention this
+        // app now uses everywhere, so no conversion needed.
         change: simulation.change,
       },
     }));
@@ -663,16 +697,16 @@ function Dashboard() {
       {/* Environmental snapshot — Feature 1 */}
       <div>
         <SectionHeading
-          eyebrow="Feature 1"
+          eyebrow="Live data"
           title="Environmental snapshot"
           hint="Populated once a location is searched"
         />
         <EnvironmentalCards data={appData.environmental} />
       </div>
 
-      {/* Risk — Feature 2 */}
+            {/* Safety — Feature 2 */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <RiskOverview data={appData.risk} />
+        <RiskOverview data={appData.safety} />
         <TreeSimulator
          data={appData.simulation}
          onSimulate={handleTreeSimulation}
@@ -688,8 +722,32 @@ function Dashboard() {
           isLoading={isGeneratingInsights}
           hasEnvironmentalData={appData.environmental.aqi != null}
         />
-        <RiskChart current={appData.simulation.currentRisk} after={appData.simulation.simulatedRisk} />
+        <RiskChart current={appData.simulation.currentSafety} after={appData.simulation.simulatedSafety} />
       </div>
+
+      {/* Next steps — Compare and Action Plan */}
+      <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div>
+          <p className="text-sm font-semibold text-[var(--color-ink)]">What's next?</p>
+          <p className="text-sm text-[var(--color-muted)]">
+            See how this compares to another location, or turn your results into a plan you can act on.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2.5">
+          <Link
+            to="/compare"
+            className="rounded-xl border border-[var(--color-line)] px-4 py-2.5 text-sm font-semibold text-[var(--color-ink)] transition-colors hover:border-[var(--color-primary)]"
+          >
+            Compare locations
+          </Link>
+          <Link
+            to="/action"
+            className="rounded-xl bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-soft)]"
+          >
+            View action plan
+          </Link>
+        </div>
+      </Card>
     </div>
   );
 }

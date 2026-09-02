@@ -31,24 +31,33 @@ function describeTrees(environmental) {
 // Exported so App.jsx (or a future Feature 2 module) can call it
 // directly without going through fetchAIInsights, e.g. for an
 // instant first pass before the Ollama layer resolves.
-export function generateRuleBasedInsights(environmental = {}, risk = {}, simulation = {}) {
+//
+// `safety` scores follow riskEngine.js's convention: 100 = best/
+// safest conditions, 0 = worst. Higher is always better, so the
+// "bigger concern" is whichever score is LOWER, not higher.
+export function generateRuleBasedInsights(environmental = {}, safety = {}, simulation = {}) {
   const factors = [describeAqi(environmental), describeHeat(environmental), describeTrees(environmental)].filter(
     Boolean,
   );
 
-  const airScore = risk.airRisk ?? (environmental.aqi != null ? Math.min(100, Math.round(environmental.aqi / 3)) : null);
-  const heatScore = risk.heatRisk;
+  // Fallback proxy (used before Feature 2 has run): approximate
+  // air safety directly from AQI using the same 0-200 scale
+  // riskEngine.js's calculateAQIScore() uses, so it's on the same
+  // footing as the real score once one exists.
+  const airSafety =
+    safety.airSafety ?? (environmental.aqi != null ? Math.max(0, Math.round(100 - (environmental.aqi / 200) * 100)) : null);
+  const heatSafety = safety.heatSafety;
 
   let mainConcern;
-  if (airScore != null && heatScore != null) {
+  if (airSafety != null && heatSafety != null) {
     mainConcern =
-      airScore >= heatScore
+      airSafety <= heatSafety
         ? `Air quality is the bigger factor here — ${describeAqi(environmental) ?? "current readings are elevated"}.`
         : `Heat is the bigger factor here — ${describeHeat(environmental) ?? "current readings are elevated"}.`;
   } else if (environmental.aqi != null) {
     mainConcern = `${describeAqi(environmental)}.`;
   } else {
-    mainConcern = "Search for a location to see a risk summary.";
+    mainConcern = "Search for a location to see a safety summary.";
   }
 
   // "Protect yourself" — personal, immediate, protective actions.
@@ -107,8 +116,8 @@ export function generateRuleBasedInsights(environmental = {}, risk = {}, simulat
     );
   }
   const simulationExplanation =
-    simulation?.simulatedRisk != null && simulation?.currentRisk != null
-      ? `Adding 10% tree coverage moves the overall risk score from ${simulation.currentRisk} to ${simulation.simulatedRisk}, mainly by adding shade and filtering particulates.`
+    simulation?.simulatedSafety != null && simulation?.currentSafety != null
+      ? `Adding 10% tree coverage moves the overall safety score from ${simulation.currentSafety} to ${simulation.simulatedSafety}, mainly by adding shade and filtering particulates.`
       : null;
 
     return {
@@ -122,9 +131,9 @@ export function generateRuleBasedInsights(environmental = {}, risk = {}, simulat
 
 // ---- Layer 2: optional local LLM (Ollama via server/app.py) ----
 
-export async function fetchAIInsights(environmental, risk, simulation) {
+export async function fetchAIInsights(environmental, safety, simulation) {
   if (!AI_API_URL) {
-    return generateRuleBasedInsights(environmental, risk, simulation);
+    return generateRuleBasedInsights(environmental, safety, simulation);
   }
 
   const controller = new AbortController();
@@ -134,7 +143,7 @@ export async function fetchAIInsights(environmental, risk, simulation) {
     const response = await fetch(AI_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ environmental, risk, simulation }),
+      body: JSON.stringify({ environmental, safety, simulation }),
       signal: controller.signal,
     });
 
@@ -148,7 +157,7 @@ export async function fetchAIInsights(environmental, risk, simulation) {
     // Backend not configured, not running, timed out, or returned
     // something unusable — fall back to the always-available
     // rule-based version instead of showing an error.
-    return generateRuleBasedInsights(environmental, risk, simulation);
+    return generateRuleBasedInsights(environmental, safety, simulation);
   } finally {
     clearTimeout(timeout);
   }
