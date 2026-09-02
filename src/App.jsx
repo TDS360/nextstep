@@ -10,6 +10,7 @@ import {
   simulateTreeCoverage,
 } from "./riskEngine.js";
 
+
 /* =====================================================
    ICONS
    Minimal stroke icons, 24x24, no external icon library.
@@ -595,14 +596,30 @@ function Dashboard() {
   // resolves. Feature 2 and Feature 3 read appData.environmental,
   // so they pick up the new numbers automatically.
   function handleLocationData(location, environmental) {
-    setAppData((prev) => ({
-      ...prev,
-      location,
-      environmental: environmental ?? EMPTY_ENVIRONMENTAL,
-      // A new location invalidates any AI insights generated for
-      // the previous one.
-      ai: placeholderData.ai,
-    }));
+      // riskEngine's scores are 0=worst/100=best; invert to the
+      // 0=no-risk/100=max-risk values the "Risk overview" card
+      // displays, and derive the plain-English top reasons from
+      // the same scores.
+      const scores = environmental ? calculateEnvironmentalRisk(environmental) : null;
+      const risk = scores
+        ? {
+            airRisk: scoreToRisk(scores.airScore),
+            heatRisk: scoreToRisk(scores.heatScore),
+            overallRisk: scoreToRisk(scores.overallScore),
+            topReasons: generateTopReasons(environmental, scores),
+          }
+        : placeholderData.risk;
+  
+      setAppData((prev) => ({
+        ...prev,
+        location,
+        environmental: environmental ?? EMPTY_ENVIRONMENTAL,
+        risk,
+        // A new location invalidates any AI insights and tree-
+        // coverage simulation generated for the previous one.
+        ai: placeholderData.ai,
+        simulation: placeholderData.simulation,
+      }));
   }
 
   // Passed to AIInsights' "Generate insights" button. Tries the
@@ -626,22 +643,27 @@ function Dashboard() {
 
     if (treeCoverage == null) return;
 
-    const simulation = simulateTreeCoverage(
+        const simulation = simulateTreeCoverage(
       appData.environmental,
       10
     );
+
+    // Invert score -> risk (see handleLocationData) so this
+    // lines up with appData.risk and reads correctly: risk
+    // should go DOWN as tree coverage goes up.
+    const currentRisk = scoreToRisk(simulation.before.overallScore);
+    const simulatedRisk = scoreToRisk(simulation.after.overallScore);
 
     setAppData((prev) => ({
       ...prev,
       simulation: {
         currentTreeCoverage: simulation.before.treeCoverage,
-        currentRisk: simulation.before.overallScore,
+        currentRisk,
         simulatedTreeCoverage: simulation.after.treeCoverage,
-        simulatedRisk: simulation.after.overallScore,
-        change: simulation.change,
+        simulatedRisk,
+        change: currentRisk - simulatedRisk, // positive = risk went down
       },
     }));
-  }
 
   return (
     <div id="dashboard" className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
