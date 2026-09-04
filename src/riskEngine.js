@@ -4,12 +4,12 @@
 // Score meaning:
 // 0   = worst conditions
 // 100 = best conditions
-// ============================================================
+// ======
 
 
-// ------------------------------------------------------------
+
 // Constants
-// ------------------------------------------------------------
+
 
 const AQI_LIMIT = 200;
 const PM25_LIMIT = 50;
@@ -224,6 +224,95 @@ function calculateOverallScore(airScore, heatScore) {
 }
 
 
+
+
+// ------------------------------------------------------------
+// SCORE -> RISK CONVERSION
+// ------------------------------------------------------------
+
+/**
+ * Converts a 0-100 "score" (0 = worst conditions, 100 = best)
+ * into a 0-100 "risk" value (0 = no risk, 100 = max risk) for
+ * display in the UI, which labels these as Air/Heat/Overall
+ * "risk". Simple inversion, null-safe.
+ */
+function scoreToRisk(score) {
+    if (score == null) return null;
+    return finalizeScore(100 - score);
+}
+
+
+// ------------------------------------------------------------
+// TOP REASONS
+// ------------------------------------------------------------
+
+/**
+ * Produces a short, plain-English list of the biggest drivers
+ * behind the current scores — the most significant factor
+ * first. Takes the raw environmental data plus the output of
+ * calculateEnvironmentalRisk(). Used by the "Risk overview"
+ * card in App.jsx.
+ */
+function generateTopReasons(environmentalData, scores) {
+    if (!environmentalData || !scores) return [];
+
+    const { aqi, pm25, temperature, treeCoverage } = environmentalData;
+    const { airScore, heatScore } = scores;
+
+    const reasons = [];
+
+    if (aqi != null && airScore != null) {
+        reasons.push({
+            weight: 100 - airScore,
+            text:
+                aqi > 100
+                    ? `Air quality is elevated (AQI ${aqi}), the main driver of air risk.`
+                    : `Air quality is in good shape (AQI ${aqi}).`,
+        });
+    }
+
+    if (pm25 != null && airScore != null && pm25 > 35) {
+        reasons.push({
+            weight: (100 - airScore) * 0.6,
+            text: `Fine particulate matter (PM2.5) is elevated at ${pm25} µg/m³.`,
+        });
+    }
+
+    if (temperature != null && heatScore != null) {
+        reasons.push({
+            weight: 100 - heatScore,
+            text:
+                temperature > 85
+                    ? `Temperature of ${temperature}°F is a significant heat-risk factor.`
+                    : `Temperature of ${temperature}°F isn't a major heat concern.`,
+        });
+    }
+
+    if (treeCoverage != null && heatScore != null) {
+        if (treeCoverage < 25) {
+            reasons.push({
+                weight: (100 - heatScore) * 0.5,
+                text: `Tree coverage is low (${treeCoverage}%), offering little shade to offset heat.`,
+            });
+        } else if (treeCoverage >= 50) {
+            reasons.push({
+                weight: -10, // a mild positive — keep it low priority
+                text: `Strong tree coverage (${treeCoverage}%) is helping keep heat risk down.`,
+            });
+        }
+    }
+
+    return reasons
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, 3)
+        .map((reason) => reason.text);
+}
+
+
+
+
+
+
 // ------------------------------------------------------------
 // MAIN ENVIRONMENTAL CALCULATION
 // ------------------------------------------------------------
@@ -240,6 +329,16 @@ function calculateOverallScore(airScore, heatScore) {
  *     treeCoverage: 14
  * }
  */
+
+
+
+
+
+
+
+
+
+
 function calculateEnvironmentalRisk(environmentalData) {
     if (
         !environmentalData ||
@@ -389,5 +488,7 @@ export {
     calculateHeatScore,
     calculateOverallScore,
     calculateEnvironmentalRisk,
-    simulateTreeCoverage
+    simulateTreeCoverage,
+    scoreToRisk,
+    generateTopReasons
 };
