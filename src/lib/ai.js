@@ -28,6 +28,32 @@ function describeTrees(environmental) {
   return `Tree coverage is strong (${treeCoverage}%), which helps moderate both heat and air quality`;
 }
 
+function getUrgency(environmental, safety) {
+  if (safety.overallSafety != null && safety.overallSafety < 40) return "Take extra care today";
+  if (environmental.aqi > 100 || environmental.feelsLike >= 90) return "Worth adjusting plans today";
+  return "Conditions are manageable";
+}
+
+function getNextBestAction(environmental, safety) {
+  const airSafety = safety.airSafety ?? (environmental.aqi == null ? null : 100 - (environmental.aqi / 200) * 100);
+  if (airSafety != null && (safety.heatSafety == null || airSafety <= safety.heatSafety) && environmental.aqi > 50) {
+    return "Reduce long, strenuous outdoor activity and check the AQI again before heading out.";
+  }
+  if (environmental.feelsLike >= 85) return "Move demanding outdoor plans away from the hottest hours, and bring water.";
+  return "Normal outdoor plans are reasonable; recheck conditions before unusually strenuous activity.";
+}
+
+function normalizeInsights(data, fallback) {
+  if (!data || typeof data !== "object" || typeof data.mainConcern !== "string") return fallback;
+  return {
+    ...fallback,
+    ...data,
+    contributingFactors: Array.isArray(data.contributingFactors) ? data.contributingFactors.filter(Boolean).slice(0, 4) : fallback.contributingFactors,
+    recommendations: Array.isArray(data.recommendations) ? data.recommendations.filter(Boolean).slice(0, 4) : fallback.recommendations,
+    environmentalActions: Array.isArray(data.environmentalActions) ? data.environmentalActions.filter(Boolean).slice(0, 4) : fallback.environmentalActions,
+  };
+}
+
 // Exported so App.jsx (or a future Feature 2 module) can call it
 // directly without going through fetchAIInsights, e.g. for an
 // instant first pass before the Ollama layer resolves.
@@ -65,21 +91,21 @@ export function generateRuleBasedInsights(environmental = {}, safety = {}, simul
   const recommendations = [];
   if (environmental.aqi != null && environmental.aqi > 100) {
     recommendations.push(
-      "Limit prolonged or intense outdoor exertion (running, biking, yard work) today — this hits children, older adults, and anyone with asthma or heart/lung conditions first",
+      "Skip prolonged or intense outdoor exertion today, especially if you have asthma or a heart or lung condition.",
     );
   }
   if (environmental.pm25 != null && environmental.pm25 > 35) {
     recommendations.push(
-      "If you're out for a while, wear a properly fitted N95/KN95 mask, and run a HEPA air purifier indoors — especially in bedrooms overnight",
+      "For extended time outside, use a well-fitting N95 or KN95 and keep indoor air filtered if possible.",
     );
   }
   if (environmental.feelsLike != null && environmental.feelsLike > 90) {
     recommendations.push(
-      "Drink water on a schedule (don't wait until you're thirsty), shift outdoor plans away from midday-to-late-afternoon, and check on elderly neighbors without A/C",
+      "Carry water, move outdoor plans away from the hottest hours, and check on anyone without reliable cooling.",
     );
   }
   if (recommendations.length === 0 && environmental.aqi != null) {
-    recommendations.push("No major personal-safety concerns detected right now — conditions are fine for normal outdoor activity");
+    recommendations.push("No major personal-safety concern is showing; normal outdoor activity is reasonable.");
   }
   if (recommendations.length === 0) {
     recommendations.push("Search for a location to see personal safety recommendations");
@@ -92,27 +118,27 @@ export function generateRuleBasedInsights(environmental = {}, safety = {}, simul
   const environmentalActions = [];
   if (environmental.treeCoverage != null && environmental.treeCoverage < 30) {
     environmentalActions.push(
-      "Contact your city or county's urban forestry / public works department and ask about their street-tree planting program — many will plant a tree in the sidewalk strip in front of your home for free or low cost. Coverage here is low enough that even a handful of new trees on your block will measurably cut local heat and filter particulates within a few years",
+      "Ask your city or county urban-forestry program about free or low-cost street-tree planting for your block.",
     );
   }
   if (environmental.aqi != null && environmental.aqi > 100) {
     environmentalActions.push(
-      "Vehicle exhaust is one of the largest controllable sources of local PM2.5 and ozone — on days like this, combine errands into one trip, carpool with a neighbor or coworker, or swap short car trips for transit or biking where you can",
+      "Combine errands, carpool, or replace short car trips with transit or biking where practical.",
     );
   }
   if (environmental.pm25 != null && environmental.pm25 > 35) {
     environmentalActions.push(
-      "Hold off on burning yard waste, wood, or trash today — open burning is one of the fastest ways to spike neighborhood PM2.5, and it's adding directly on top of an already elevated reading",
+      "Avoid burning yard waste, wood, or trash while PM2.5 is elevated.",
     );
   }
   if (environmental.treeCoverage != null && environmental.treeCoverage >= 30) {
     environmentalActions.push(
-      "This area already has decent canopy — help keep it that way by reporting storm-damaged or diseased street trees to your city's forestry department, and by volunteering with a local tree-care group that waters and mulches young trees through their first few summers, when most newly planted trees actually die",
+      "Protect the existing canopy by reporting damaged trees and watering young street trees during dry spells.",
     );
   }
   if (environmentalActions.length === 0 && environmental.aqi != null) {
     environmentalActions.push(
-      "Conditions are good right now — a good time to get ahead of future problems by finding a local tree-planting event, community garden, or park cleanup through your city's parks department, or a group like the Arbor Day Foundation or American Forests",
+      "Use the good conditions to join a local tree-planting, park-cleanup, or community-garden effort.",
     );
   }
   const simulationExplanation =
@@ -126,6 +152,8 @@ export function generateRuleBasedInsights(environmental = {}, safety = {}, simul
     recommendations,
     environmentalActions,
     simulationExplanation,
+    urgency: getUrgency(environmental, safety),
+    nextBestAction: getNextBestAction(environmental, safety),
   };
 }
 
@@ -152,7 +180,7 @@ export async function fetchAIInsights(environmental, safety, simulation) {
     const data = await response.json();
     if (data.error) throw new Error(data.error);
 
-    return data;
+    return normalizeInsights(data, generateRuleBasedInsights(environmental, safety, simulation));
   } catch {
     // Backend not configured, not running, timed out, or returned
     // something unusable — fall back to the always-available
@@ -161,4 +189,132 @@ export async function fetchAIInsights(environmental, safety, simulation) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// ---- Layer 3: follow-up chat ----
+//
+// Unlike fetchAIInsights, there is deliberately NO rule-based
+// fallback here — a canned template can't hold a real conversation,
+// and pretending to would be dishonest. Two REAL paths instead,
+// tried in order:
+//
+//   1. Your own Flask backend (server/app.py), if VITE_AI_API_URL
+//      is set and that server is actually reachable. Preferred —
+//      the API key never touches the browser.
+//   2. A direct browser -> OpenAI call, if VITE_OPENAI_API_KEY is
+//      set. Works with ZERO backend server running (so it works on
+//      a plain deployed GitHub Pages site too) — the tradeoff is
+//      that key ships inside your built JS and is technically
+//      visible to anyone who looks. Use a key with a strict
+//      spending cap set in your OpenAI dashboard for this reason.
+//
+// isChatConfigured() lets the UI decide upfront whether to even
+// offer a chat box; fetchChatReply throws only if BOTH paths fail,
+// so the UI can show a clear "unavailable" state instead of
+// hanging or faking a response.
+const CHAT_API_URL = AI_API_URL ? AI_API_URL.replace(/\/api\/ai-insights\/?$/, "/api/chat") : null;
+const CLIENT_SIDE_OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+const CLIENT_SIDE_OPENAI_MODEL = "gpt-4o-mini";
+
+export function isChatConfigured() {
+  return CHAT_API_URL != null || CLIENT_SIDE_OPENAI_KEY != null;
+}
+
+// Same strict-grounding instructions as server/app.py's /api/chat
+// route — kept in sync by hand since this is the client-side
+// mirror of that same behavior, not a shared import (this file
+// runs in the browser; app.py runs in Python).
+function buildChatSystemPrompt(context) {
+  return (
+    "You are a friendly environmental health assistant. You must ground " +
+    "every answer STRICTLY in the data provided below — never invent " +
+    "numbers, locations, health claims, or facts that aren't in it. This " +
+    "is the only data you have for the person's searched location " +
+    "(JSON): " +
+    JSON.stringify(context) +
+    ". If a question genuinely cannot be answered from this data " +
+    "(e.g. they ask about a different city, a health condition, or " +
+    "something this dashboard doesn't track), say plainly that you " +
+    "don't have that information here, and suggest a real resource: " +
+    "airnow.gov for current US air quality alerts, their local health " +
+    "department for health-specific questions, or 911/local emergency " +
+    "services for a genuine emergency. Never guess to fill the gap. " +
+    "Answer directly and concisely (2-4 sentences unless they ask for " +
+    "more detail). Don't restate the raw JSON back at them."
+  );
+}
+
+async function fetchChatReplyFromBackend(messages, context) {
+  if (!CHAT_API_URL) throw new Error("Backend not configured");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(CHAT_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, context }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) throw new Error(`Chat backend responded ${response.status}`);
+
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+
+    return data.reply;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchChatReplyDirectFromOpenAI(messages, context) {
+  if (!CLIENT_SIDE_OPENAI_KEY) throw new Error("Client-side OpenAI key not configured");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${CLIENT_SIDE_OPENAI_KEY}`,
+      },
+      body: JSON.stringify({
+        model: CLIENT_SIDE_OPENAI_MODEL,
+        messages: [{ role: "system", content: buildChatSystemPrompt(context) }, ...messages],
+      }),
+      signal: controller.signal,
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message ?? `OpenAI responded ${response.status}`);
+
+    return data.choices[0].message.content.trim();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// `messages` is the running conversation: [{ role: "user"|"assistant", content }, ...]
+// `context` is whatever appData the caller wants the model aware of
+// (environmental/safety/simulation) — sent fresh with every message
+// since neither path keeps conversation state on its own.
+export async function fetchChatReply(messages, context) {
+  if (CHAT_API_URL) {
+    try {
+      return await fetchChatReplyFromBackend(messages, context);
+    } catch {
+      // Backend configured but not reachable right now — fall
+      // through to the direct path below rather than giving up.
+    }
+  }
+
+  if (CLIENT_SIDE_OPENAI_KEY) {
+    return fetchChatReplyDirectFromOpenAI(messages, context);
+  }
+
+  throw new Error("No chat backend or client-side API key configured");
 }
